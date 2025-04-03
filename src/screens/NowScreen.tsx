@@ -1,153 +1,165 @@
 import React, { useEffect, useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ActivityIndicator,
-  ScrollView,
-} from 'react-native';
-import { MaterialCommunityIcons, Feather } from '@expo/vector-icons';
-import { fetchCurrentWeather } from '../api/weather';
+import { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
+import { View, Text, ActivityIndicator, ScrollView } from 'react-native';
+import { WeatherData, fetchCurrentWeather } from '../api/weather';
+import { Location } from '../api/location';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { globalStyles, colors } from '../styles/theme';
 
-const NowScreen = () => {
-  const [weather, setWeather] = useState<any>(null);
+// Define the param list for all screens
+type RootTabParamList = {
+  Now: { location: Location };
+  Hourly: { location: Location };
+  '10 Day': { location: Location };
+  Maps: { location: Location };
+};
+
+// Create the proper navigation type
+type NowScreenProps = BottomTabScreenProps<RootTabParamList, 'Now'>;
+
+const NowScreen: React.FC<NowScreenProps> = ({ route }) => {
+  const { location } = route.params;
+  const [weather, setWeather] = useState<WeatherData | null>(null);
   const [loading, setLoading] = useState(true);
-  const city = 'New York';
+  const [error, setError] = useState('');
+  const [currentTime, setCurrentTime] = useState('');
 
   useEffect(() => {
+    // Update time every minute
+    const updateTime = () => {
+      const now = new Date();
+      const timeString = now.toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+      setCurrentTime(timeString);
+    };
+
+    updateTime();
+    const timeInterval = setInterval(updateTime, 60000);
+
     const getWeather = async () => {
       try {
-        const data = await fetchCurrentWeather(city);
+        setLoading(true);
+        const data = await fetchCurrentWeather(location);
         setWeather(data);
+        setError('');
       } catch (err) {
+        setError('Failed to load weather data');
         console.error(err);
       } finally {
         setLoading(false);
       }
     };
 
-    getWeather();
-  }, []);
+    if (location) {
+      getWeather();
+    }
+
+    return () => clearInterval(timeInterval);
+  }, [location]);
 
   if (loading) {
     return (
-      <View style={styles.loading}>
-        <ActivityIndicator size="large" color="#007aff" />
+      <View style={globalStyles.loading}>
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
 
-  const currentDateTime = new Date().toLocaleString('en-US', {
-    weekday: 'long',
-    hour: 'numeric',
-    minute: 'numeric',
-  });
+  if (error) {
+    return (
+      <View style={globalStyles.loading}>
+        <Text style={globalStyles.errorText}>{error}</Text>
+      </View>
+    );
+  }
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      {/* Top Weather Card */}
-      <View style={styles.weatherCard}>
-        <Feather name="sun" size={60} color="#fff" />
-        <Text style={styles.temperature}>{Math.round(weather.main.temp)}°</Text>
-        <Text style={styles.city}>{weather.name}</Text>
-        <Text style={styles.time}>{currentDateTime}</Text>
-        <Text style={styles.feels}>
-          Feels like: {Math.round(weather.main.feels_like)}°
-        </Text>
-      </View>
+    <ScrollView style={globalStyles.scrollView}>
+      <View style={globalStyles.contentContainer}>
+        {/* Header section with location and main weather */}
+        <View style={globalStyles.headerSection}>
+          {/* Location and time row */}
+          <View style={globalStyles.locationTimeRow}>
+            <Text style={globalStyles.locationName}>{location.name}</Text>
+            <Text style={globalStyles.currentTime}>{currentTime}</Text>
+          </View>
 
-      {/* Detailed Observations */}
-      <Text style={styles.sectionTitle}>Detailed Observations</Text>
-      <View style={styles.grid}>
-        <InfoCard icon="wind" label="Wind" value={`${weather.wind.speed} mph`} />
-        <InfoCard icon="weather-sunny-alert" label="UV Index" value="6 (High)" />
-        <InfoCard icon="weather-rainy" label="Precipitation" value="10%" />
-        <InfoCard icon="thermometer" label="Humidity" value={`${weather.main.humidity}%`} />
-        <InfoCard icon="weather-cloudy" label="Cloud Cover" value="40%" />
-        <InfoCard icon="gauge" label="Pressure" value={`${weather.main.pressure} hPa`} />
+          {weather && (
+            <>
+              {/* Main temperature */}
+              <Text style={globalStyles.temperature}>{Math.round(weather.main.temp)}°C</Text>
+
+              {/* Weather description */}
+              <Text style={globalStyles.description}>{weather.weather[0].description}</Text>
+
+              {/* Feels like temperature */}
+              <Text style={globalStyles.feelsLike}>
+                Feels like {Math.round(weather.main.feels_like)}°C
+              </Text>
+
+              {/* High and low temperatures */}
+              <View style={globalStyles.highLowContainer}>
+                <View style={globalStyles.highLowItem}>
+                  <MaterialCommunityIcons name="arrow-up" size={18} color={colors.text.primary} />
+                  <Text style={globalStyles.highLowText}>
+                    {Math.round(weather.main.temp_max)}°C
+                  </Text>
+                </View>
+
+                <View style={globalStyles.highLowItem}>
+                  <MaterialCommunityIcons name="arrow-down" size={18} color={colors.text.primary} />
+                  <Text style={globalStyles.highLowText}>
+                    {Math.round(weather.main.temp_min)}°C
+                  </Text>
+                </View>
+              </View>
+            </>
+          )}
+        </View>
+
+        {/* Detailed observations section - now without feels like */}
+        {weather && (
+          <View style={globalStyles.card}>
+            <Text style={globalStyles.sectionTitle}>Detailed Observations</Text>
+
+            <View style={globalStyles.detailBoxesContainer}>
+              {/* Humidity */}
+              <View style={globalStyles.detailBox}>
+                <MaterialCommunityIcons name="water-percent" size={24} color={colors.primary} />
+                <Text style={globalStyles.detailLabel}>Humidity</Text>
+                <Text style={globalStyles.detailValue}>{weather.main.humidity}%</Text>
+              </View>
+
+              {/* Wind */}
+              <View style={globalStyles.detailBox}>
+                <MaterialCommunityIcons name="weather-windy" size={24} color={colors.primary} />
+                <Text style={globalStyles.detailLabel}>Wind</Text>
+                <Text style={globalStyles.detailValue}>{weather.wind.speed} m/s</Text>
+              </View>
+
+              {/* Pressure */}
+              <View style={globalStyles.detailBox}>
+                <MaterialCommunityIcons name="gauge" size={24} color={colors.primary} />
+                <Text style={globalStyles.detailLabel}>Pressure</Text>
+                <Text style={globalStyles.detailValue}>{weather.main.pressure} hPa</Text>
+              </View>
+
+              {/* Visibility */}
+              <View style={globalStyles.detailBox}>
+                <MaterialCommunityIcons name="eye" size={24} color={colors.primary} />
+                <Text style={globalStyles.detailLabel}>Visibility</Text>
+                <Text style={globalStyles.detailValue}>
+                  {weather.visibility ? `${(weather.visibility / 1000).toFixed(1)} km` : 'N/A'}
+                </Text>
+              </View>
+            </View>
+          </View>
+        )}
       </View>
     </ScrollView>
   );
 };
-
-type InfoCardProps = {
-  icon: keyof typeof MaterialCommunityIcons.glyphMap;
-  label: string;
-  value: string;
-};
-
-const InfoCard = ({ icon, label, value }: InfoCardProps) => (
-  <View style={styles.card}>
-    <MaterialCommunityIcons name={icon} size={28} color="#007aff" />
-    <Text style={styles.cardLabel}>{label}</Text>
-    <Text style={styles.cardValue}>{value}</Text>
-  </View>
-);
-
-const styles = StyleSheet.create({
-  container: {
-    padding: 20,
-    paddingBottom: 50,
-  },
-  loading: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  weatherCard: {
-    backgroundColor: '#007aff',
-    borderRadius: 16,
-    padding: 24,
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  temperature: {
-    fontSize: 64,
-    color: '#fff',
-    fontWeight: 'bold',
-  },
-  city: {
-    fontSize: 20,
-    color: '#fff',
-    marginTop: 8,
-  },
-  time: {
-    color: '#e0e0e0',
-    fontSize: 14,
-  },
-  feels: {
-    marginTop: 4,
-    color: '#fff',
-    fontSize: 16,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 12,
-  },
-  grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-  },
-  card: {
-    width: '48%',
-    backgroundColor: '#f9f9f9',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-    alignItems: 'center',
-  },
-  cardLabel: {
-    marginTop: 6,
-    fontSize: 14,
-    color: '#333',
-  },
-  cardValue: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#111',
-  },
-});
 
 export default NowScreen;
