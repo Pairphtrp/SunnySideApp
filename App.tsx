@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, useNavigation, CommonActions } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { View, Text, TouchableOpacity, Modal, TextInput, FlatList, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, Modal, TextInput, FlatList, ActivityIndicator } from 'react-native';
 import { Location, searchLocations } from './src/api/location';
 import { loadLocations, saveLocations, loadCurrentLocation, saveCurrentLocation } from './src/utils/locationStorage';
 import { globalStyles, colors } from './src/styles/theme';
+import { useFocusEffect } from '@react-navigation/native';
+import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 
 // Screens
 import NowScreen from './src/screens/NowScreen';
@@ -13,9 +15,26 @@ import HourlyScreen from './src/screens/HourlyScreen';
 import TenDayScreen from './src/screens/TenDayScreen';
 import MapScreen from './src/screens/MapScreen';
 
-const Tab = createBottomTabNavigator();
+const Tab = createBottomTabNavigator<{
+  Now: { location: Location };
+  Hourly: { location: Location };
+  '10 Day': { location: Location };
+  Maps: { location: Location; addMode?: boolean };
+}>();
 
-export default function App() {
+// Define the RootParamList type
+type RootParamList = {
+  Now: { location: Location };
+  Hourly: { location: Location };
+  '10 Day': { location: Location };
+  Maps: { location: Location; addMode?: boolean };
+};
+
+// Main app content component
+function AppContent() {
+  // Now we can use navigation hooks here safely
+  const navigation = useNavigation<BottomTabNavigationProp<RootParamList>>();
+
   // Add state variables
   const [currentLocation, setCurrentLocation] = useState<Location | null>(null);
   const [savedLocations, setSavedLocations] = useState<Location[]>([]);
@@ -51,6 +70,29 @@ export default function App() {
 
     initializeLocations();
   }, []);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      const reloadLocations = async () => {
+        const loaded = await loadLocations();
+        setSavedLocations(loaded);
+
+        // Also reload current location
+        const current = await loadCurrentLocation();
+        if (current) {
+          setCurrentLocation(current);
+        }
+      };
+
+      reloadLocations();
+    }, [])
+  );
+
+  useEffect(() => {
+    if (currentLocation && navigation) {
+      navigation.setParams({ location: currentLocation } as any);
+    }
+  }, [currentLocation, navigation]);
 
   const addLocation = async (location: Location) => {
     if (!savedLocations.some(loc => loc.lat === location.lat && loc.lon === location.lon)) {
@@ -95,8 +137,9 @@ export default function App() {
     );
   }
 
+  // Return the tab navigator and modals
   return (
-    <NavigationContainer>
+    <>
       <Tab.Navigator
         screenOptions={{
           tabBarActiveTintColor: colors.primary,
@@ -115,6 +158,7 @@ export default function App() {
             ),
           }}
         />
+        {/* Other tab screens remain the same */}
         <Tab.Screen
           name="Hourly"
           component={HourlyScreen}
@@ -154,6 +198,7 @@ export default function App() {
         animationType="slide"
         onRequestClose={() => setIsDropdownVisible(false)}
       >
+        {/* Modal content remains the same */}
         <View style={globalStyles.modalContainer}>
           <View style={globalStyles.modalContent}>
             <Text style={globalStyles.modalTitle}>Your Locations</Text>
@@ -166,8 +211,26 @@ export default function App() {
                   style={globalStyles.listItem}
                   onPress={() => {
                     setCurrentLocation(item);
-                    saveCurrentLocation(item);
-                    setIsDropdownVisible(false);
+                    saveCurrentLocation(item).then(() => {
+                      // Close the dropdown
+                      setIsDropdownVisible(false);
+
+                      // Use proper navigation state access
+                      const state = navigation.getState();
+                      const currentRoute = state.routes[state.index];
+                      const currentScreen = currentRoute?.name || 'Now';
+
+                      // Use the specific type for the current screen
+                      if (currentScreen === 'Now') {
+                        navigation.navigate('Now', { location: item });
+                      } else if (currentScreen === 'Hourly') {
+                        navigation.navigate('Hourly', { location: item });
+                      } else if (currentScreen === '10 Day') {
+                        navigation.navigate('10 Day', { location: item });
+                      } else if (currentScreen === 'Maps') {
+                        navigation.navigate('Maps', { location: item });
+                      }
+                    });
                   }}
                 >
                   <Text style={globalStyles.subtitle}>{item.name}</Text>
@@ -182,9 +245,24 @@ export default function App() {
               style={globalStyles.button}
               onPress={() => {
                 setIsAddingLocation(true);
+                setIsDropdownVisible(false);
               }}
             >
-              <Text style={globalStyles.buttonText}>+ Add New Location</Text>
+              <Text style={globalStyles.buttonText}>Search for City</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[globalStyles.button, { backgroundColor: colors.secondary }]}
+              onPress={() => {
+                setIsDropdownVisible(false);
+                navigation.navigate('Maps', {
+                  location: currentLocation!,  // Add non-null assertion
+                  addMode: true
+                });
+              }}
+            >
+              <MaterialCommunityIcons name="map-marker-plus" size={16} color="white" style={{ marginRight: 6 }} />
+              <Text style={globalStyles.buttonText}>Add from Map</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -206,6 +284,7 @@ export default function App() {
       >
         <View style={globalStyles.modalContainer}>
           <View style={globalStyles.modalContent}>
+            {/* Modal content remains the same */}
             <Text style={globalStyles.modalTitle}>Search Location</Text>
 
             <TextInput
@@ -232,6 +311,19 @@ export default function App() {
             />
 
             <TouchableOpacity
+              style={globalStyles.button}
+              onPress={() => {
+                setIsAddingLocation(false);
+                navigation.navigate('Maps', {
+                  location: currentLocation!,  // Add non-null assertion
+                  addMode: true
+                });
+              }}
+            >
+              <Text style={globalStyles.buttonText}>Add Location from Map</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
               style={[globalStyles.button, { backgroundColor: 'transparent' }]}
               onPress={() => setIsAddingLocation(false)}
             >
@@ -240,6 +332,15 @@ export default function App() {
           </View>
         </View>
       </Modal>
+    </>
+  );
+}
+
+// Main App component that provides NavigationContainer
+export default function App() {
+  return (
+    <NavigationContainer>
+      <AppContent />
     </NavigationContainer>
   );
 }
