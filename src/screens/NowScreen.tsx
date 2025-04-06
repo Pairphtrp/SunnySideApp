@@ -5,6 +5,7 @@ import { WeatherData, fetchCurrentWeather } from '../api/weather';
 import { Location } from '../api/location';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { globalStyles, colors } from '../styles/theme';
+import { useUnit } from '../context/UnitContext'; // ✅ import temperature unit context
 
 // Define the param list for all screens
 type RootTabParamList = {
@@ -24,6 +25,9 @@ const NowScreen: React.FC<NowScreenProps> = ({ route }) => {
   const [error, setError] = useState('');
   const [currentTime, setCurrentTime] = useState('');
 
+  const { unit } = useUnit(); // ✅ access current unit setting from context
+  const tempSymbol = unit === 'metric' ? '°C' : '°F'; // ✅ display correct unit symbol
+
   useEffect(() => {
     // Update time every minute
     const updateTime = () => {
@@ -35,13 +39,13 @@ const NowScreen: React.FC<NowScreenProps> = ({ route }) => {
       setCurrentTime(timeString);
     };
 
-    updateTime();
-    const timeInterval = setInterval(updateTime, 60000);
+    updateTime(); // set time initially
+    const timeInterval = setInterval(updateTime, 60000); // update time every minute
 
     const getWeather = async () => {
       try {
         setLoading(true);
-        const data = await fetchCurrentWeather(location);
+        const data = await fetchCurrentWeather(location, unit); // ✅ fetch weather using current unit
         setWeather(data);
         setError('');
       } catch (err) {
@@ -53,11 +57,11 @@ const NowScreen: React.FC<NowScreenProps> = ({ route }) => {
     };
 
     if (location) {
-      getWeather();
+      getWeather(); // ✅ get weather when component mounts or location/unit changes
     }
 
-    return () => clearInterval(timeInterval);
-  }, [location]);
+    return () => clearInterval(timeInterval); // cleanup interval
+  },[location, unit]); // ✅ refetch when unit changes
 
   if (loading) {
     return (
@@ -89,14 +93,14 @@ const NowScreen: React.FC<NowScreenProps> = ({ route }) => {
           {weather && (
             <>
               {/* Main temperature */}
-              <Text style={globalStyles.temperature}>{Math.round(weather.main.temp)}°C</Text>
+              <Text style={globalStyles.temperature}>{Math.round(weather.main.temp)}{tempSymbol}</Text>
 
               {/* Weather description */}
               <Text style={globalStyles.description}>{weather.weather[0].description}</Text>
 
               {/* Feels like temperature */}
               <Text style={globalStyles.feelsLike}>
-                Feels like {Math.round(weather.main.feels_like)}°C
+                Feels like {Math.round(weather.main.feels_like)}{tempSymbol}
               </Text>
 
               {/* High and low temperatures */}
@@ -104,14 +108,14 @@ const NowScreen: React.FC<NowScreenProps> = ({ route }) => {
                 <View style={globalStyles.highLowItem}>
                   <MaterialCommunityIcons name="arrow-up" size={18} color={colors.text.primary} />
                   <Text style={globalStyles.highLowText}>
-                    {Math.round(weather.main.temp_max)}°C
+                    {Math.round(weather.main.temp_max)}{tempSymbol}
                   </Text>
                 </View>
 
                 <View style={globalStyles.highLowItem}>
                   <MaterialCommunityIcons name="arrow-down" size={18} color={colors.text.primary} />
                   <Text style={globalStyles.highLowText}>
-                    {Math.round(weather.main.temp_min)}°C
+                    {Math.round(weather.main.temp_min)}{tempSymbol}
                   </Text>
                 </View>
               </View>
@@ -119,7 +123,7 @@ const NowScreen: React.FC<NowScreenProps> = ({ route }) => {
           )}
         </View>
 
-        {/* Detailed observations section - now without feels like */}
+        {/* Detailed observations section */}
         {weather && (
           <View style={globalStyles.card}>
             <Text style={globalStyles.sectionTitle}>Detailed Observations</Text>

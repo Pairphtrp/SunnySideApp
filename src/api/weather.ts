@@ -11,8 +11,8 @@ export interface WeatherData {
     feels_like: number;
     humidity: number;
     pressure: number;
-    temp_min: number;  // Add this
-    temp_max: number;  // Add this
+    temp_min: number;
+    temp_max: number;
   };
   weather: Array<{
     id: number;
@@ -24,16 +24,14 @@ export interface WeatherData {
     speed: number;
     deg: number;
   };
-  visibility: number;  // Add this
+  visibility: number;
   name: string;
   dt: number;
 }
 
-// Add this interface to your weather.ts file
-
 export interface HourlyForecastData {
   list: Array<{
-    dt: number; // Unix timestamp
+    dt: number;
     main: {
       temp: number;
       feels_like: number;
@@ -49,15 +47,15 @@ export interface HourlyForecastData {
       icon: string;
     }>;
     clouds: {
-      all: number; // Cloud coverage percentage
+      all: number;
     };
     wind: {
       speed: number;
       deg: number;
     };
     visibility: number;
-    pop: number; // Probability of precipitation (0-1)
-    dt_txt: string; // Date and time in text format
+    pop: number;
+    dt_txt: string;
   }>;
   city: {
     name: string;
@@ -73,15 +71,19 @@ export interface HourlyForecastData {
 /**
  * Fetch current weather by location
  * @param location Location object with coordinates
+ * @param unit 'metric' for °C, 'imperial' for °F
  * @returns Weather data
  */
-export const fetchCurrentWeather = async (location: Location): Promise<WeatherData> => {
+export const fetchCurrentWeather = async (
+  location: Location,
+  unit: 'metric' | 'imperial'
+): Promise<WeatherData> => {
   try {
     const response = await axios.get(`${BASE_URL}/weather`, {
       params: {
         lat: location.lat,
         lon: location.lon,
-        units: 'metric', // For Celsius (use 'imperial' for Fahrenheit)
+        units: unit,
         appid: API_KEY,
       },
     });
@@ -95,15 +97,19 @@ export const fetchCurrentWeather = async (location: Location): Promise<WeatherDa
 /**
  * Fetch hourly forecast for a location
  * @param location Location object with coordinates
+ * @param unit 'metric' or 'imperial'
  * @returns Hourly forecast data
  */
-export const fetchHourlyForecast = async (location: Location): Promise<HourlyForecastData> => {
+export const fetchHourlyForecast = async (
+  location: Location,
+  unit: 'metric' | 'imperial'
+): Promise<HourlyForecastData> => {
   try {
     const response = await axios.get(`${BASE_URL}/forecast`, {
       params: {
         lat: location.lat,
         lon: location.lon,
-        units: 'metric',
+        units: unit,
         appid: API_KEY,
       },
     });
@@ -116,18 +122,22 @@ export const fetchHourlyForecast = async (location: Location): Promise<HourlyFor
 
 /**
  * Fetch 10-day forecast for a location
+ * Note: This requires the One Call API 3.0 (Pro key)
  * @param location Location object with coordinates
+ * @param unit 'metric' or 'imperial'
  * @returns Daily forecast data
  */
-export const fetchDailyForecast = async (location: Location) => {
+export const fetchDailyForecast = async (
+  location: Location,
+  unit: 'metric' | 'imperial'
+) => {
   try {
-    // Using OneCall API (requires subscription) or can use forecast and group by day
     const response = await axios.get(`https://api.openweathermap.org/data/3.0/onecall`, {
       params: {
         lat: location.lat,
         lon: location.lon,
         exclude: 'current,minutely,hourly,alerts',
-        units: 'metric',
+        units: unit,
         appid: API_KEY,
       },
     });

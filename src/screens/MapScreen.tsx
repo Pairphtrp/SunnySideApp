@@ -5,8 +5,10 @@ import { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import { Location, getLocationByCoords } from '../api/location';
 import { saveLocations, loadLocations, saveCurrentLocation } from '../utils/locationStorage';
 import { fetchCurrentWeather, WeatherData } from '../api/weather';
-import { globalStyles, colors } from '../styles/theme'
+import { globalStyles, colors } from '../styles/theme';
+import { useUnit } from '../context/UnitContext'; // useUnit for °C/°F toggle
 
+// Tab param types
 type RootTabParamList = {
   Now: { location: Location };
   Hourly: { location: Location };
@@ -36,6 +38,9 @@ const MapScreen: React.FC<MapScreenProps> = ({ route, navigation }) => {
   const [addMode, setAddMode] = useState(initialAddMode || false);
   const mapRef = useRef<MapView>(null);
 
+  const { unit } = useUnit(); // get current temperature unit (metric or imperial)
+  const tempSymbol = unit === 'metric' ? '°C' : '°F'; // used in UI for display
+
   // Load saved locations
   useEffect(() => {
     const getSavedLocations = async () => {
@@ -50,7 +55,7 @@ const MapScreen: React.FC<MapScreenProps> = ({ route, navigation }) => {
     const getWeatherForLocation = async () => {
       try {
         setLoadingWeather(true);
-        const data = await fetchCurrentWeather(currentLocation);
+        const data = await fetchCurrentWeather(currentLocation, unit); // pass unit to weather API
         setWeatherData(data);
       } catch (err) {
         console.error('Error fetching weather:', err);
@@ -60,8 +65,9 @@ const MapScreen: React.FC<MapScreenProps> = ({ route, navigation }) => {
     };
 
     getWeatherForLocation();
-  }, [currentLocation]);
+  }, [currentLocation, unit]); // refetch when location or unit changes
 
+  // handle map tap in Add Location mode
   const handleMapPress = async (event: any) => {
     if (!addMode) return;
 
@@ -71,7 +77,6 @@ const MapScreen: React.FC<MapScreenProps> = ({ route, navigation }) => {
     try {
       setLoadingLocation(true);
       const location = await getLocationByCoords(coordinate.latitude, coordinate.longitude);
-
       if (location) {
         setSelectedLocation(location);
       }
@@ -82,10 +87,10 @@ const MapScreen: React.FC<MapScreenProps> = ({ route, navigation }) => {
     }
   };
 
+  // Save the selected location and navigate to Now tab
   const saveNewLocation = async () => {
     if (!selectedLocation) return;
 
-    // Add to saved locations if not already present
     const exists = savedLocations.some(
       loc => loc.lat === selectedLocation.lat && loc.lon === selectedLocation.lon
     );
@@ -96,21 +101,16 @@ const MapScreen: React.FC<MapScreenProps> = ({ route, navigation }) => {
       await saveLocations(newLocations);
     }
 
-    // Set as current location
     await saveCurrentLocation(selectedLocation);
-
-    // Navigate to Now screen with the new location
     navigation.navigate('Now', { location: selectedLocation });
-
-    // Exit add mode
     setAddMode(false);
   };
 
+  // Cancel add mode and reset map view
   const cancelAddLocation = () => {
     setAddMode(false);
     setSelectedLocation(null);
 
-    // Reset map view to current location
     if (mapRef.current) {
       mapRef.current.animateToRegion({
         latitude: currentLocation.lat,
@@ -126,7 +126,6 @@ const MapScreen: React.FC<MapScreenProps> = ({ route, navigation }) => {
       <MapView
         ref={mapRef}
         style={styles.map}
-        // Remove PROVIDER_GOOGLE
         initialRegion={region}
         onRegionChangeComplete={setRegion}
         onPress={handleMapPress}
@@ -148,7 +147,7 @@ const MapScreen: React.FC<MapScreenProps> = ({ route, navigation }) => {
               latitude: selectedLocation.lat,
               longitude: selectedLocation.lon,
             }}
-            title={selectedLocation.name || "Selected Location"}
+            title={selectedLocation.name || 'Selected Location'}
             pinColor="blue"
           />
         )}
@@ -164,8 +163,7 @@ const MapScreen: React.FC<MapScreenProps> = ({ route, navigation }) => {
             title={loc.name}
             description={`${loc.state ? `${loc.state}, ` : ''}${loc.country}`}
             pinColor={
-              loc.lat === currentLocation.lat && loc.lon === currentLocation.lon
-                ? "red" : "orange"
+              loc.lat === currentLocation.lat && loc.lon === currentLocation.lon ? 'red' : 'orange'
             }
           />
         ))}
@@ -209,7 +207,7 @@ const MapScreen: React.FC<MapScreenProps> = ({ route, navigation }) => {
         </View>
       )}
 
-      {/* "Add Location" Button when not in add mode */}
+      {/* Add Location button when not in add mode */}
       {!addMode && (
         <TouchableOpacity
           style={styles.addButton}
@@ -219,12 +217,12 @@ const MapScreen: React.FC<MapScreenProps> = ({ route, navigation }) => {
         </TouchableOpacity>
       )}
 
-      {/* Weather Info Panel - Only show if we have data and not in add mode */}
+      {/* Weather Info Panel - show temperature with correct unit */}
       {!addMode && weatherData && (
         <View style={styles.weatherPanel}>
           <Text style={styles.weatherTitle}>{currentLocation.name}</Text>
           <View style={styles.weatherInfo}>
-            <Text style={styles.weatherTemp}>{Math.round(weatherData.main.temp)}°C</Text>
+            <Text style={styles.weatherTemp}>{Math.round(weatherData.main.temp)}{tempSymbol}</Text>
             <Text style={{ marginLeft: 10 }}>{weatherData.weather[0].description}</Text>
           </View>
         </View>
@@ -234,12 +232,8 @@ const MapScreen: React.FC<MapScreenProps> = ({ route, navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  map: {
-    ...StyleSheet.absoluteFillObject
-  },
+  container: { flex: 1 },
+  map: { ...StyleSheet.absoluteFillObject },
   addLocationPanel: {
     position: 'absolute',
     bottom: 0,
@@ -255,23 +249,10 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 5,
   },
-  locationInfo: {
-    marginBottom: 16,
-    alignItems: 'center'
-  },
-  locationTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: colors.text.primary
-  },
-  locationSubtitle: {
-    fontSize: 14,
-    color: colors.text.secondary
-  },
-  buttonContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between'
-  },
+  locationInfo: { marginBottom: 16, alignItems: 'center' },
+  locationTitle: { fontSize: 18, fontWeight: 'bold', color: colors.text.primary },
+  locationSubtitle: { fontSize: 14, color: colors.text.secondary },
+  buttonContainer: { flexDirection: 'row', justifyContent: 'space-between' },
   button: {
     flex: 1,
     backgroundColor: colors.primary,
@@ -279,10 +260,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
   },
-  buttonText: {
-    color: 'white',
-    fontWeight: 'bold'
-  },
+  buttonText: { color: 'white', fontWeight: 'bold' },
   addButton: {
     position: 'absolute',
     bottom: 20,
@@ -311,21 +289,9 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 5,
   },
-  weatherTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: colors.primary
-  },
-  weatherInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 8
-  },
-  weatherTemp: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: colors.primary
-  },
+  weatherTitle: { fontSize: 18, fontWeight: 'bold', color: colors.primary },
+  weatherInfo: { flexDirection: 'row', alignItems: 'center', marginTop: 8 },
+  weatherTemp: { fontSize: 24, fontWeight: 'bold', color: colors.primary },
 });
 
 export default MapScreen;

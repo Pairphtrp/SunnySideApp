@@ -5,9 +5,10 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Location } from '../api/location';
 import { fetchHourlyForecast } from '../api/weather';
 import { globalStyles, colors } from '../styles/theme';
+import { useUnit } from '../context/UnitContext'; // ✅ Import unit context for C/F toggle
 
-// The weather api we choose doesnt allow us to get an hourly forecast of the location. 
-// We instead use the Api to get a forecast every 3 hours and display first 8 to get a 24 hour forecast.
+// The weather API provides 3-hour interval forecasts (not true hourly)
+// We'll use the first 8 intervals to simulate a 24-hour forecast
 
 // Define the param list for all screens - same as in NowScreen
 type RootTabParamList = {
@@ -43,11 +44,14 @@ const HourlyScreen: React.FC<HourlyScreenProps> = ({ route }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+  const { unit } = useUnit(); // ✅ Read temperature unit from context
+  const tempSymbol = unit === 'metric' ? '°C' : '°F'; // ✅ Decide symbol to display
+
   useEffect(() => {
     const getHourlyForecast = async () => {
       try {
         setLoading(true);
-        const data = await fetchHourlyForecast(location);
+        const data = await fetchHourlyForecast(location, unit); // ✅ Pass unit to API
 
         // API returns forecast in 3-hour increments, for up to 5 days (40 entries)
         // We'll take the first 24 hours (8 entries)
@@ -62,9 +66,9 @@ const HourlyScreen: React.FC<HourlyScreenProps> = ({ route }) => {
     };
 
     if (location) {
-      getHourlyForecast();
+      getHourlyForecast(); // ✅ Refetch when location or unit changes
     }
-  }, [location]);
+  }, [location, unit]);
 
   // Format the time from the API's timestamp
   const formatTime = (timestamp: number): string => {
@@ -87,7 +91,7 @@ const HourlyScreen: React.FC<HourlyScreenProps> = ({ route }) => {
     return `https://openweathermap.org/img/wn/${iconCode}@2x.png`;
   };
 
-  // Group forecast items by day
+  // Group forecast items by day (for multi-day scroll)
   const groupByDay = (forecastItems: ForecastItem[]) => {
     const groups: { [day: string]: ForecastItem[] } = {};
 
@@ -129,7 +133,7 @@ const HourlyScreen: React.FC<HourlyScreenProps> = ({ route }) => {
           <Text style={styles.forecastTitle}>3-Hour Forecast</Text>
         </View>
 
-        {/* Show forecast by day */}
+        {/* Show forecast grouped by day */}
         {groupedForecast.map(([day, items]) => (
           <View key={day} style={globalStyles.card}>
             <Text style={globalStyles.sectionTitle}>
@@ -151,7 +155,7 @@ const HourlyScreen: React.FC<HourlyScreenProps> = ({ route }) => {
 
                   {/* Temperature */}
                   <Text style={styles.tempText}>
-                    {Math.round(item.main.temp)}°C
+                    {Math.round(item.main.temp)}{tempSymbol}
                   </Text>
 
                   {/* Weather icon */}
@@ -235,7 +239,7 @@ const styles = StyleSheet.create({
     textTransform: 'capitalize',
     textAlign: 'center',
     marginBottom: 8,
-    height: 32, // Fixed height for multiline descriptions
+    height: 32,
   },
   precipRow: {
     flexDirection: 'row',

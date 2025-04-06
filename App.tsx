@@ -8,6 +8,9 @@ import { loadLocations, saveLocations, loadCurrentLocation, saveCurrentLocation 
 import { globalStyles, colors } from './src/styles/theme';
 import { useFocusEffect } from '@react-navigation/native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
+import SettingsScreen from './src/screens/SettingsScreen';
+import { UnitProvider } from './src/context/UnitContext';
+
 
 // Screens
 import NowScreen from './src/screens/NowScreen';
@@ -189,7 +192,20 @@ function AppContent() {
             ),
           }}
         />
+        {/* Settings Screen */}
+        <Tab.Screen
+          name="Settings"
+          component={SettingsScreen}
+          options={{
+          tabBarIcon: ({ color }) => (
+          <MaterialCommunityIcons name="cog-outline" color={color} size={24} />
+          ),
+        }}
+        />
       </Tab.Navigator>
+        
+        
+
 
       {/* Location Dropdown Modal */}
       <Modal
@@ -339,8 +355,11 @@ function AppContent() {
 // Main App component that provides NavigationContainer
 export default function App() {
   return (
-    <NavigationContainer>
-      <AppContent />
-    </NavigationContainer>
+    <UnitProvider>
+      <NavigationContainer>
+        <AppContent />
+      </NavigationContainer>
+    </UnitProvider>
   );
 }
+

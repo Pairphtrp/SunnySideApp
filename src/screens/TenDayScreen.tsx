@@ -5,9 +5,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Location } from '../api/location';
 import { fetchHourlyForecast } from '../api/weather';
 import { globalStyles, colors } from '../styles/theme';
-
-// Note: The free OpenWeatherMap API only provides a 5-day forecast
-// We'll use the same API endpoint as the hourly forecast but process it differently
+import { useUnit } from '../context/UnitContext'; // ✅ Import unit toggle context
 
 // Define the param list for all screens
 type RootTabParamList = {
@@ -58,11 +56,14 @@ const TenDayScreen: React.FC<TenDayScreenProps> = ({ route }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+  const { unit } = useUnit(); // ✅ use unit context
+  const tempSymbol = unit === 'metric' ? '°C' : '°F'; // ✅ decide what unit symbol to display
+
   useEffect(() => {
     const getDailyForecast = async () => {
       try {
         setLoading(true);
-        const data = await fetchHourlyForecast(location);
+        const data = await fetchHourlyForecast(location, unit); // ✅ fetch forecast with current unit
 
         // Validate data structure
         if (!data || !data.list || !Array.isArray(data.list)) {
@@ -84,13 +85,13 @@ const TenDayScreen: React.FC<TenDayScreenProps> = ({ route }) => {
     };
 
     if (location) {
-      getDailyForecast();
+      getDailyForecast(); // ✅ refetch whenever location or unit changes
     }
-  }, [location]);
+  }, [location, unit]);
 
   // Process the 3-hour forecast data into daily forecasts
   const processDailyForecasts = (forecastList: any[]): DailyForecast[] => {
-    const dailyData: { [day: string]: ForecastItem[] } = {}; // Type this properly
+    const dailyData: { [day: string]: ForecastItem[] } = {}; // Group data by day string
 
     // Group forecasts by day
     forecastList.forEach((item: any) => {
@@ -104,16 +105,15 @@ const TenDayScreen: React.FC<TenDayScreenProps> = ({ route }) => {
       dailyData[day].push(item as ForecastItem);
     });
 
-    // For each day, calculate high/low temps and choose midday forecast for other data
+    // For each day, calculate high/low temps and pick noon forecast as representative
     return Object.entries(dailyData).map(([day, items]) => {
-      // Use proper typing for temperature calculations
       const tempsMax = items.map((item: ForecastItem) => item.main.temp_max);
       const tempsMin = items.map((item: ForecastItem) => item.main.temp_min);
 
       const highTemp = Math.max(...tempsMax);
       const lowTemp = Math.min(...tempsMin);
 
-      // Find forecast closest to noon for the day's "representative" forecast
+      // Find forecast closest to noon for the day's representative weather
       const noonForecast = items.reduce((closest, current) => {
         const date = new Date(current.dt * 1000);
         const hourDiff = Math.abs(12 - date.getHours());
@@ -123,7 +123,6 @@ const TenDayScreen: React.FC<TenDayScreenProps> = ({ route }) => {
         return hourDiff < closestHourDiff ? current : closest;
       }, items[0]);
 
-      // Rest of your function unchanged...
       const avgPrecipitation = items.reduce((sum, item) => sum + (item.pop || 0), 0) / items.length;
       const date = new Date(noonForecast.dt * 1000);
 
@@ -174,7 +173,7 @@ const TenDayScreen: React.FC<TenDayScreenProps> = ({ route }) => {
         <View style={globalStyles.card}>
           {forecast.map((day, index) => (
             <View
-              key={`${day.dateFormatted}-${index}`}  // Added index to make each key unique
+              key={`${day.dateFormatted}-${index}`}
               style={[
                 globalStyles.listItem,
                 index === forecast.length - 1 ? { borderBottomWidth: 0 } : {}
@@ -218,7 +217,7 @@ const TenDayScreen: React.FC<TenDayScreenProps> = ({ route }) => {
                     color={colors.text.primary}
                   />
                   <Text style={styles.highTempText}>
-                    {Math.round(day.highTemp)}°
+                    {Math.round(day.highTemp)}{tempSymbol}
                   </Text>
                 </View>
                 <View style={styles.tempRow}>
@@ -228,7 +227,7 @@ const TenDayScreen: React.FC<TenDayScreenProps> = ({ route }) => {
                     color={colors.text.secondary}
                   />
                   <Text style={styles.lowTempText}>
-                    {Math.round(day.lowTemp)}°
+                    {Math.round(day.lowTemp)}{tempSymbol}
                   </Text>
                 </View>
               </View>
@@ -272,10 +271,8 @@ const styles = StyleSheet.create({
   weatherDesc: {
     fontSize: 12,
     color: colors.text.secondary,
-    lineHeight: 16, // Add this for better spacing between lines
-    flexWrap: 'wrap', // Allow text to wrap
-    // Remove maxWidth or increase it:
-    // maxWidth: 100, // Increased from 80
+    lineHeight: 16,
+    flexWrap: 'wrap'
   },
   precipRow: {
     flexDirection: 'row',
